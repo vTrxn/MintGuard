@@ -1,0 +1,26 @@
+# Model weights (distribute via Hugging Face Hub or Ollama)
+*.gguf
+*.bin
+*.safetensors
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+venv-*/
+ENV/
+
+# Training and checkpoint outputs
+outputs/
+checkpoint-*/
+wandb/
+
+# Environment and system files
+.env
+*.log
+.DS_Store
+Thumbs.db

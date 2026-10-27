@@ -1,0 +1,12 @@
+# Core training requirements (Colab / Linux GPU)
+# unsloth
+# torch
+# datasets
+# trl
+# transformers
+# bitsandbytes
+
+# Local runtime & proxy requirements
+# Note: sentinel.py and proxy.py use Python standard library (urllib, http.server, json, uuid)
+# Optional dependencies for extended benchmarks:
+pydantic>=2.0.0
