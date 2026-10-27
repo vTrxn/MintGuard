@@ -1,202 +1,202 @@
 # MintGuard
 
-On-premises privacy gateway and prompt-injection guardrail powered by a fine-tuned 1.5B parameter language model (Qwen 2.5).
+Pasarela de privacidad y cortafuegos contra inyecciones de instrucciones (*prompt injection*) on-premise, impulsado por un modelo de lenguaje compacto (SLM) de 1.5B parámetros (Qwen 2.5).
 
-MintGuard runs locally to inspect incoming text, mask sensitive entities (PII, credentials, financial identifiers), detect adversarial prompt injections, and restore original values upon response completion. No unmasked data leaves the local environment.
+MintGuard se ejecuta de forma local para inspeccionar texto entrante, enmascarar entidades confidenciales (datos personales, credenciales técnicas, identificadores financieros), neutralizar ataques adversariales y restaurar los valores originales cuando el modelo externo completa su respuesta. Ningún dato sensible sin anonimizar sale del entorno local.
 
-Version: 1.0.0
+Versión: 1.0.0
 
 ---
 
-## Architecture
+## Arquitectura
 
 ```
-User / Client Application
+Usuario / Aplicación Cliente
           │
-          │ (1) Raw text with sensitive data
+          │ (1) Texto entrante con datos confidenciales
           ▼
 ┌──────────────────────────────────────────────┐
-│ MintGuard Gateway (Local Inbound)            │
+│ MintGuard Gateway (Entrada Local)            │
 │                                              │
-│ 1. SLM Guardrail (Qwen 2.5 1.5B Q4_K_M)      │
-│    - Classifies prompt injection attacks     │
-│    - Extracts PII, secrets, and financial ID │
+│ 1. Centinela SLM (Qwen 2.5 1.5B Q4_K_M)      │
+│    - Clasifica ataques de prompt injection   │
+│    - Extrae PII, secretos y datos bancarios  │
 │                                              │
-│ 2. Ephemeral Token Vault (Local Memory)      │
-│    - Stores: <NAME_1> -> "Carlos Pérez"      │
-│    - Stores: <SECRET_1> -> "sk-proj-..."     │
+│ 2. Token Vault Efímero (Memoria RAM Local)   │
+│    - Guarda: <NAME_1> -> "Carlos Pérez"      │
+│    - Guarda: <SECRET_1> -> "sk-proj-..."     │
 └──────────────────────┬───────────────────────┘
                        │
-                       │ (2) Sanitized text (<NAME_1>, <SECRET_1>)
+                       │ (2) Texto sanitizado (<NAME_1>, <SECRET_1>)
                        ▼
-             External Model / Cloud API
+              Modelo en la Nube / API
              (OpenAI, Anthropic, Gemini)
                        │
-                       │ (3) Completion with placeholders
+                       │ (3) Respuesta generada con etiquetas
                        ▼
 ┌──────────────────────────────────────────────┐
-│ MintGuard Gateway (Local Outbound)           │
+│ MintGuard Gateway (Salida Local)             │
 │                                              │
-│ 3. Rehydration Engine                        │
-│    - Swaps placeholders with Vault values    │
+│ 3. Motor de Re-hidratación                   │
+│    - Restaura etiquetas con valores reales   │
 └──────────────────────┬───────────────────────┘
                        │
-                       │ (4) Final response restored
+                       │ (4) Respuesta final completa
                        ▼
-User / Client Application
+Usuario / Aplicación Cliente
 ```
 
 ---
 
-## Core Capabilities
+## Capacidades Principales
 
-- **Strict Schema Enforcement:** Output is constrained to deterministic JSON containing classification status, injection reasoning, entity records, and sanitized text.
-- **Entity Masking:** Identifies names (`NAME`), national IDs/passports (`ID`), contact details (`CONTACT`), API tokens/keys (`SECRET`), and banking/card numbers (`FINANCIAL`).
-- **Prompt Injection Defense:** Detects privilege escalation, system override instructions, DAN roleplay exploits, and context delimiter hijacking.
-- **Local Execution:** Operates entirely within your local hardware or private VPC using Ollama or `llama.cpp`. Quantized footprint is under 1.0 GB VRAM.
-- **Deterministic Rehydration:** Ephemeral mapping ensures downstream cloud providers process abstractions while users receive intact natural responses.
-
----
-
-## Project Structure
-
-```
-├── Modelfile             # Ollama configuration and system prompt definition
-├── sentinel.py           # Standalone CLI, file processor, and Python SDK
-├── proxy.py              # HTTP proxy service with /sanitize and /rehydrate endpoints
-├── train.py              # Fine-tuning script using Unsloth and QLoRA
-├── generate_dataset.py   # Synthetic dataset generator with adversarial distributions
-├── test_model.py         # Automated evaluation suite for validation testing
-├── train.jsonl           # Curated training dataset (420 records)
-├── val.jsonl             # Hold-out validation dataset (75 records)
-└── requirements.txt      # Project dependencies
-```
+- **Cumplimiento estricto de esquema:** Salida forzada a un JSON determinista que contiene estado de seguridad, justificación del análisis, listado de entidades y texto sanitizado.
+- **Enmascaramiento de entidades:** Identifica nombres (`NAME`), documentos de identidad o pasaportes (`ID`), datos de contacto (`CONTACT`), tokens y claves de API (`SECRET`), y números bancarios o tarjetas (`FINANCIAL`).
+- **Defensa contra inyecciones de prompt:** Detecta simulaciones de modo desarrollador, instrucciones de anulación del sistema, *jailbreaks* estilo DAN y secuestro de delimitadores de contexto.
+- **Ejecución 100% local:** Corre dentro de tu propia infraestructura o hardware con Ollama o `llama.cpp`. El modelo cuantizado consume menos de 1.0 GB de VRAM.
+- **Re-hidratación determinista:** El mapeo temporal en memoria asegura que los proveedores de IA externos solo procesen abstracciones, mientras el usuario recibe respuestas naturales con sus datos reales.
 
 ---
 
-## Model Specifications
+## Estructura del Proyecto
 
-| Parameter | Specification |
+```
+├── Modelfile             # Definición del modelo y plantilla ChatML para Ollama
+├── sentinel.py           # Herramienta CLI, procesador por lotes y SDK para Python
+├── proxy.py              # Servicio HTTP local con endpoints /sanitize y /rehydrate
+├── train.py              # Script de fine-tuning optimizado con Unsloth y QLoRA
+├── generate_dataset.py   # Generador del dataset sintético equilibrado
+├── test_model.py         # Suite de pruebas automatizada para validación
+├── train.jsonl           # Dataset de entrenamiento (420 registros)
+├── val.jsonl             # Dataset de validación fuera de muestra (75 registros)
+└── requirements.txt      # Dependencias del proyecto
+```
+
+---
+
+## Especificaciones del Modelo
+
+| Parámetro | Especificación |
 | :--- | :--- |
-| **Base Architecture** | Qwen 2.5 (1.5B Instruct) |
-| **Fine-Tuning Method** | QLoRA (r=16, alpha=16) via Unsloth |
-| **Quantization Format** | GGUF (Q4_K_M) |
-| **File Size** | ~986 MB |
-| **Inference Hardware** | Consumer GPU (RTX 4060, RTX 3060, or Apple Silicon) / CPU fallback |
-| **Inference Latency** | ~20–45 ms on CUDA Tensor Cores |
+| **Arquitectura base** | Qwen 2.5 (1.5B Instruct) |
+| **Método de Fine-Tuning** | QLoRA (r=16, alpha=16) mediante Unsloth |
+| **Formato de cuantización** | GGUF (Q4_K_M) |
+| **Tamaño de archivo** | ~986 MB |
+| **Hardware de inferencia** | GPU de consumo (RTX 4060, RTX 3060, Apple Silicon) o CPU |
+| **Latencia de inferencia** | ~20–45 ms en núcleos Tensor CUDA |
 
 ---
 
-## Quickstart
+## Guía de Inicio Rápido
 
-### 1. Prerequisites
+### 1. Requisitos
 
-- Python 3.10+
-- [Ollama](https://ollama.com/) installed and running locally.
+- Python 3.10 o superior.
+- [Ollama](https://ollama.com/) instalado y activo en el sistema.
 
-### 2. Register the Model in Ollama
+### 2. Registrar el Modelo en Ollama
 
-Place the compiled GGUF model file into the project root and run:
+Ubica el archivo compilado `.gguf` en la raíz del proyecto y ejecuta:
 
 ```bash
 ollama create pii-sentinel -f Modelfile
 ```
 
-Verify registration:
+Verifica el registro:
 
 ```bash
 ollama list
 ```
 
-### 3. Usage Options
+### 3. Modos de Uso
 
-#### Option A: Command Line Interface (CLI)
+#### Opción A: Interfaz de Línea de Comandos (CLI)
 
-Single text analysis:
+Análisis de un texto directo:
 
 ```bash
-python sentinel.py "Dr. Sergio Morales, phone +34 655443322. Please update the record."
+python sentinel.py "Dr. Sergio Morales, teléfono +34 655443322. Favor actualizar el registro."
 ```
 
-Interactive terminal mode:
+Modo consola interactiva:
 
 ```bash
 python sentinel.py
 ```
 
-Batch file processing (logs, CSVs, transcripts):
+Procesamiento de archivos en lote (logs, CSVs, transcripciones):
 
 ```bash
-python sentinel.py --file path/to/access.log
+python sentinel.py --file ruta/al/archivo.log
 ```
-*Generates `access_sanitized.log` with all sensitive entities masked.*
+*Genera automáticamente `archivo_sanitized.log` con todas las entidades sensibles enmascaradas.*
 
-#### Option B: Python SDK
+#### Opción B: SDK en Python
 
 ```python
 from sentinel import Sentinel
 
 guard = Sentinel()
 
-# 1. Sanitize incoming request
-result = guard.sanitize("Developer test: api_key is sk-proj-998877abc")
+# 1. Sanitizar petición entrante
+resultado = guard.sanitize("Prueba de depuración: api_key es sk-proj-998877abc")
 
-if result["is_prompt_injection"]:
-    raise ValueError(f"Blocked: {result['injection_reason']}")
+if resultado["is_prompt_injection"]:
+    raise ValueError(f"Bloqueado: {resultado['injection_reason']}")
 
-print("Safe payload:", result["sanitized_text"])
-# Safe payload: Developer test: api_key is <SECRET_1>
+print("Texto seguro:", resultado["sanitized_text"])
+# Salida: Prueba de depuración: api_key es <SECRET_1>
 
-# 2. Rehydrate after external completion
-restored = guard.rehydrate(
-    vault_id=result["vault_id"],
-    text="Key <SECRET_1> has been successfully verified."
+# 2. Re-hidratar tras recibir respuesta externa
+respuesta_final = guard.rehydrate(
+    vault_id=resultado["vault_id"],
+    text="La clave <SECRET_1> ha sido verificada correctamente."
 )
-print("Delivered to user:", restored)
+print("Entregado al usuario:", respuesta_final)
 ```
 
-#### Option C: HTTP Gateway Service
+#### Opción C: Servicio Gateway HTTP
 
-Start the local server:
+Inicia el servidor local:
 
 ```bash
 python proxy.py
 ```
 
-Endpoints:
-- `POST /sanitize`: Evaluates text, returns `{ blocked, sanitized_text, vault_id, raw_entities }`.
-- `POST /rehydrate`: Replaces stored placeholders using the provided `vault_id`.
-- `GET /`: Local monitoring and inspection interface.
+Endpoints disponibles:
+- `POST /sanitize`: Analiza el texto y retorna `{ blocked, sanitized_text, vault_id, raw_entities }`.
+- `POST /rehydrate`: Reemplaza las etiquetas usando el `vault_id` de la sesión.
+- `GET /`: Panel visual de inspección y monitorización local.
 
 ---
 
-## Evaluation & Benchmarks
+## Evaluación y Métricas de Rendimiento
 
-Results tested across 75 out-of-sample validation records:
+Pruebas ejecutadas sobre 75 registros fuera de muestra (*out-of-sample*):
 
-| Metric | Result | Description |
+| Métrica | Resultado | Descripción |
 | :--- | :--- | :--- |
-| **JSON Validity Rate** | 100.0% | Output parses via `json.loads` without formatting errors |
-| **Schema Conformance** | 98.7% | Matches Pydantic validation types exactly |
-| **PII Precision** | 97.4% | Accurate entity extraction across name, contact, secret, financial |
-| **False Positive Rate** | 0.0% | Benign operational queries remained unmodified |
-| **Attack Deflection** | 96.0% | Jailbreaks and override attempts blocked at ingestion |
+| **Tasa de validez JSON** | 100.0% | Todas las respuestas parsean con `json.loads` sin errores sintácticos |
+| **Conformidad de esquema** | 98.7% | Coincidencia exacta con los tipos definidos |
+| **Precisión en PII** | 97.4% | Extracción precisa en nombres, contactos, secretos y datos bancarios |
+| **Falsos positivos** | 0.0% | Consultas operativas benignas no sufrieron alteraciones |
+| **Bloqueo de ataques** | 96.0% | Intentos de jailbreak y anulación interceptados en la entrada |
 
 ---
 
-## Retraining Pipeline
+## Pipeline de Re-entrenamiento
 
-To reproduce the model from scratch:
+Para reproducir el modelo desde cero:
 
-1. Generate or update training records:
+1. Generar o ampliar el dataset:
    ```bash
    python generate_dataset.py
    ```
-2. Run `train.py` on a CUDA-enabled GPU (e.g. Google Colab T4 or local RTX GPU).
-3. The script compiles and exports `Qwen2.5-1.5B-Instruct.Q4_K_M.gguf` ready for Ollama ingestion.
+2. Ejecutar `train.py` en un entorno con GPU CUDA (por ejemplo, Google Colab con GPU T4 gratuita).
+3. El script compila y exporta directamente `Qwen2.5-1.5B-Instruct.Q4_K_M.gguf`, listo para ser consumido por Ollama.
 
 ---
 
-## License
+## Licencia
 
-MIT License. See LICENSE for details.
+Distribuido bajo la Licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más información.
